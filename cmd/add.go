@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -55,6 +58,8 @@ func init() {
 func run(name string) {
 	// Make the directory for use
 	err := os.Mkdir(name, 0755)
+
+	// TODO: Need to gracefully exit here
 	check(err)
 
 	// Establish the version go to use via runtime
@@ -69,13 +74,13 @@ func run(name string) {
 	err = os.WriteFile(name+"/go.mod", modFile, 0644)
 	check(err)
 
-	title := strings.Title(name)
+	title := camelCase(name)
 
-	mainFile := []byte(fmt.Sprintf("package main\n\nfunc %v(){\n\n}\n\nfunc main() {\n\n}\n", title))
+	mainFile := []byte(fmt.Sprintf("package main\n\nfunc %v(){\n\n}\n\nfunc main() {\n\t%v()\n}\n", title, title))
 	err = os.WriteFile(name+"/main.go", mainFile, 0644)
 	check(err)
 
-	mainTestFile := []byte(fmt.Sprintf("package main\n\nimport \"testing\"\n\nfunc Test%v(t *testing.T) {\n\n}\n", title))
+	mainTestFile := []byte(fmt.Sprintf("package main\n\nimport \"testing\"\n\nfunc Test%v(t *testing.T) {\n\n}\n", cases.Title(language.AmericanEnglish, cases.NoLower).String(title)))
 	err = os.WriteFile(name+"/main_test.go", mainTestFile, 0644)
 	check(err)
 
@@ -85,4 +90,36 @@ func run(name string) {
 		check(err)
 	}
 
+}
+
+// Starting point:
+// https://stackoverflow.com/questions/70083837/how-to-convert-a-string-to-camelcase-in-go
+// This does not actually create a camelcase title - need to separate string - capitalize - and combine
+func camelCase(s string) string {
+
+	// Replace all underscores with spaces
+	s = strings.ReplaceAll(s, "_", " ")
+
+	// Replace all dashes with spaces
+	s = strings.ReplaceAll(s, "-", " ")
+
+	// Remove all characters that are not alphanumeric or spaces or underscores
+	s = regexp.MustCompile("[^a-zA-Z0-9_ ]+").ReplaceAllString(s, "")
+
+	// split on spaces
+	strs := strings.Split(s, " ")
+	var newstr []string
+
+	for _, v := range strs {
+		newstr = append(newstr, cases.Title(language.AmericanEnglish, cases.NoLower).String(v))
+	}
+	// Iterate over each item in the array
+	s = strings.Join(newstr, "")
+
+	// Lowercase the first letter
+	if len(s) > 0 {
+		s = strings.ToLower(s[:1]) + s[1:]
+	}
+
+	return s
 }
